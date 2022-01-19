@@ -1,4 +1,6 @@
 #!/bin/bash
+set -eo pipefail
+WD=$(dirname "${BASH_SOURCE[0]}")
 
 if [ "$1" = "start" ]; then
     docker-compose -f ${WD}/docker-compose.yml build
