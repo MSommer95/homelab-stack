@@ -11,9 +11,9 @@ if [ "$1" = "stop" ]; then
     docker-compose -f ${WD}/docker-compose.yml stop
 fi
 if [ "$1" = "update" ]; then
-				docker-compose -f ${WD}/docker-compose.yml pull
-				docker-compose up -d
-				docker image prune
+    docker-compose -f ${WD}/docker-compose.yml pull
+    docker-compose up -d
+    docker image prune
 fi
 if [ "$1" = "remove" ]; then
     docker-compose -f ${WD}/docker-compose.yml down -v
