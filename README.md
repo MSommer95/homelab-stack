@@ -4,7 +4,7 @@
     - pi-hole
     - nginx reverse proxy
 
-##Usage
+## Usage
 
 |Command|Description|
 |---|---|
