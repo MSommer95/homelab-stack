@@ -2,10 +2,12 @@
 set -eo pipefail
 WD=$(dirname "${BASH_SOURCE[0]}")
 
+export COMPOSE_PROJECT_NAME=raspi-stack
+
 if [ "$1" = "start" ]; then
-    docker-compose -f ${WD}/docker-compose.yml build
-    mkdir -p ${WD}/config
-    docker-compose -f ${WD}/docker-compose.yml up -d
+    docker-compose -f ${WD}/docker-compose.yml build 
+    mkdir -p ${WD}/data/config
+    docker-compose -f ${WD}/docker-compose.yml up -d --remove-orphans
 fi
 if [ "$1" = "stop" ]; then
     docker-compose -f ${WD}/docker-compose.yml stop

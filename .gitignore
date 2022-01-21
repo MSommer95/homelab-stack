@@ -1,2 +1,2 @@
-passwd
-/config
+/containers/unifi-controller/passwd
+/data
