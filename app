@@ -20,7 +20,8 @@ source_file() {
 if [ "$#" -ne 1 ] || [[ "$1" != "start" && "$1" != "stop" && "$1" != "remove" && "$1" != "logs" && "$1" != "update" && "$1" != "create" ]]; then
     echo '''
   usage: app [start|stop|remove]
-
+    
+    create: Create necessary files and dirs.
     start:  Build and start containers.
     stop:   Stop the containers.
     update: Update the containers by pulling new images. 

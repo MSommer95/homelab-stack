@@ -45,6 +45,7 @@
 
 |Command|Description|
 |---|---|
+| ``app create``|create necessary files and dirs|
 | ``app start``|starting up the build process and the deployment|
 | ``app stop``|stop the services|
 |``app update``|update the images of the services with|
