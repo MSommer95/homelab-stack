@@ -1,10 +1,12 @@
-version: '3.4'
+version: '3'
 services:
   controller:
     hostname: controller
     image: ryansch/unifi-rpi:6.5
-    container_name: ${COMPOSE_PROJECT_NAME}_controller
+    container_name: ${PROJECT_NAME}_controller
     restart: always
+    env_file:
+      - ./.env
     # Uncomment the following to set java options
     # environment:
     #   JAVA_OPTS: -Xmx512M
@@ -17,32 +19,76 @@ services:
       - ./data/unifi/run2:/run/unifi
       - ./data/unifi/work:/usr/lib/unifi/work
     ports:
-      - "3478:3478/udp" # STUN
-      - "6789:6789/tcp" # Speed test
-      - "8080:8080/tcp" # Device/ controller comm.
-      - "8443:8443/tcp" # Controller GUI/API as seen in a web browser
-      - "8880:8880/tcp" # HTTP portal redirection
-      - "8843:8843/tcp" # HTTPS portal redirection
+      - "3478:3478/udp"   # STUN
+      - "6789:6789/tcp"   # Speed test
+      - "8080:8080/tcp"   # Device/ controller comm.
+        #- "8443:8443/tcp"   # Controller GUI/API as seen in a web browser
+        #- "8880:8880/tcp"   # HTTP portal redirection
+        #- "8843:8843/tcp"   # HTTPS portal redirection
       - "10001:10001/udp" # AP discovery
     networks:
-      - overlaynet
+      - backend
 
   nginx:
     hostname: nginx
-    image: nginx:1.21.4
-    container_name: ${COMPOSE_PROJECT_NAME}_nginx
+    build:
+      context: containers/nginx
+    image: nginx
+    container_name: ${PROJECT_NAME}_nginx
     restart: always
+    env_file:
+      - ./.env
     ports:
       # Public HTTP Port:
-      #- '80:80'
+      - '80:80'
       # Public HTTPS Port:
       - '443:443'
     volumes:
-      - ./containers/nginx/:/etc/nginx/conf.d
+      #- ./containers/nginx/:/etc/nginx/conf.d
       - ./data/ssl/:/ssl
     networks:
-      - overlaynet
+      - backend
+
+  pihole:
+    image: pihole/pihole:2022.01.1
+    container_name: ${PROJECT_NAME}_pihole
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+    restart: unless-stopped
+    cap_add:
+        - NET_ADMIN
+    dns:
+      - 127.0.0.1
+      - 1.1.1.1
+    environment:
+      TZ: ${TZ}
+      ServerIP: ${IP_ADDRESS}
+      PIHOLE_DNS_: ${PIHOLE_DNS}
+        #VIRTUAL_HOST: ${IP_ADDRESS}
+      DNSMASQ_LISTENING: all
+      WEBPASSWORD: ${PROJECT_PW}
+    volumes:
+      - './data/pihole/pihole/:/etc/pihole/'
+      - './data/pihole/dnsmasq.d/:/etc/dnsmasq.d/'
+    depends_on:
+      - dhcphelper
+    networks:
+      backend:
+        ipv4_address: '172.31.0.100'
+
+  dhcphelper:
+    build:
+      context: containers/dhcp-helper
+    container_name: ${PROJECT_NAME}_dhcp-helper
+    restart: unless-stopped
+    network_mode: "host"
+    command: -s 172.31.0.100
+    cap_add:
+      - NET_ADMIN
 
 networks:
-  overlaynet:
-    driver: bridge  
+  backend:
+    ipam:
+      config:
+        - subnet: 172.31.0.0/16
