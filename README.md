@@ -23,14 +23,16 @@
     - Docker Compose:
        - https://docs.docker.com/compose/install/
     - Make sure following ports are not blocked on your raspberry pi:
-        - `3478/udp`    Unifi Controller STUN.
-        - `6789/tcp`    Unifi Controller Speed Test.
-        - `8080/tcp`    Unifi Controller Device / Controller communication.
-        - `10001/udp`   Unifi Controller AP discovery.
-        - `80/tcp`      NGINX http port (required to redirect to 443)
-        - `443/tcp`     NGINX https port
-        - `53tcp/udp`   PiHole 
-        - `67/udp`      DHCP Relay
+    ````
+        - 3478/udp    Unifi Controller STUN.
+        - 6789/tcp    Unifi Controller Speed Test.
+        - 8080/tcp    Unifi Controller Device / Controller communication.
+        - 10001/udp   Unifi Controller AP discovery.
+        - 80/tcp      NGINX http port (required to redirect to 443)
+        - 443/tcp     NGINX https port
+        - 53tcp/udp   PiHole 
+        - 67/udp      DHCP Relay
+    ````
 - Clone this repository to your raspberry pi.
 - Edit the file `.env` and fill in your information.
 - Execute the app script: `sudo ./app start`
