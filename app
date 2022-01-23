@@ -17,7 +17,7 @@ source_file() {
     eval $(cat $1 | grep -Ev '(#.*$)|(^\s*$)' | sed 's/^/export /')
 }
 
-if [ "$#" -ne 1 ] || [[ "$1" != "start" && "$1" != "stop" && "$1" != "remove" && "$1" != "logs" ]]; then
+if [ "$#" -ne 1 ] || [[ "$1" != "start" && "$1" != "stop" && "$1" != "remove" && "$1" != "logs" && "$1" != "update" && "$1" != "create" ]]; then
     echo '''
   usage: app [start|stop|remove]
 
@@ -32,6 +32,15 @@ fi
 
 source_file .env 
 
+
+if [ "$1" = "create" ]; then
+    mkdir -p ${WD}/data/ssl
+    mkdir -p ${WD}/data/pihole/pihole
+    mkdir -p ${WD}/data/pihole/dnsmasq.d
+    mkdir -p ${WD}/data/unifi
+    echo dhcp-option=option:dns-server,${IP_ADDRESS}  > ${WD}/data/pihole/dnsmasq.d/07-dhcp-options.conf
+    openssl req -newkey rsa:4096 -x509 -sha256 -days 3650 -nodes -out ${WD}/data/ssl/raspi.crt -keyout ${WD}/data/ssl/raspi.key
+fi
 if [ "$1" = "start" ]; then
     docker-compose -f ${WD}/docker-compose.yml build 
     docker-compose -f ${WD}/docker-compose.yml up -d --remove-orphans

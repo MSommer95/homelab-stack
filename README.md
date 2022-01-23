@@ -19,13 +19,11 @@
        - https://docs.docker.com/compose/install/
 - Clone this repository to your raspberry pi.
 - Edit the file `.env` and fill in your information.
-- Execute the app script: `sudo ./app start`
-- Once everything is started stop every container `sudo ./app stop`:
-    - To make the pihole work properly you have to now add the following file:
-    - `07-dhcp-options.conf` with this line `dhcp-option=option:dns-server,x.x.x.x` where x.x.x.x is your raspberry pi's ip.
+- Create the necessary directories and files: `sudp ./app create`.
+    - The common name (CN) for your openssl crt should be your raspberry pi's ip. 
 - Now you can start everything up again: `sudo ./app start`.
 - Pihole available: https://x.x.x.x/admin
-- Unifi Controller: https://x.x.x.x/wss 
+- Unifi Controller: https://x.x.x.x/wss
 
 ## Usage
 
