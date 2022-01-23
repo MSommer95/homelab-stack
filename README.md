@@ -8,10 +8,12 @@
 - Make sure to setup your raspberry pi.
     - Setup a static ip:
         - Add to the following file `/etc/dhcpcd.conf`:
-        - ```` interface eth0
+        ````
+        interface eth0
         static ip_address=192.168.0.160/24   # Your Raspberry Pi ip
         static routers=192.168.0.1           # Your routers ip
-        static domain_name_servers=127.0.0.1 # Any available DNS to you like 1.1.1.1 or 8.8.8.8 ````
+        static domain_name_servers=127.0.0.1 # Any available DNS to you like 1.1.1.1 or 8.8.8.8 
+        ````
     - Install Docker and Docker Compose
     - Docker:
        - https://docs.docker.com/engine/install/debian/
