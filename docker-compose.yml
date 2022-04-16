@@ -30,7 +30,9 @@ services:
       - INFLUXDB_ADMIN_PASSWORD=${INFLUXDB_PASSWORD} # sourced from .env
 
   telegraf:
-    image: telegraf:latest
+    build:
+      context: ./containers/telegraf
+    image: telegraf:raspi-stack
     restart: always
     container_name: telegraf
     network_mode: "host"
@@ -39,11 +41,15 @@ services:
       - HOST_PROC=/hostfs/proc
       - HOST_SYS=/hostfs/sys
       - HOST_VAR=/hostfs/var
-        #- HOST_RUN=/hostfs/run
+      - HOST_RUN=/hostfs/run
       - HOST_MOUNT_PREFIX=/hostfs
+      - COMMUNITY_STRING=${COMMUNITY_STRING}
+      - INFLUXDB_USERNAME=${INFLUXDB_USERNAME}
+      - INFLUXDB_PASSWORD=${INFLUXDB_PASSWORD}
+      - INFLUXDB_NAME=${INFLUXDB_NAME}
+      - INFLUXDB_URL=${INFLUXDB_URL}
     volumes:
       - ./data/influxdb/telegraf.conf:/etc/telegraf/telegraf.conf:ro
-        #- /sys/class/thermal/thermal_zone0/temp:/sys/class/thermal/thermal_zone0/temp:ro
       - /:/hostfs:ro
 
   grafana:
@@ -66,3 +72,18 @@ services:
       # to be modified depending on your needs
       - ./data/grafana/data:/var/lib/grafana
       - ./data/grafana/provisioning:/etc/grafana/provisioning
+
+  unifi-poller:
+    restart: always
+    image: golift/unifi-poller:${POLLER_TAG}
+    network_mode: "host"
+    environment:
+      - UP_INFLUXDB_DB=${INFLUXDB_NAME}
+      - UP_INFLUXDB_USER=${INFLUXDB_USERNAME}
+      - UP_INFLUXDB_PASS=${INFLUXDB_PASSWORD}
+      - UP_INFLUXDB_URL=${INFLUXDB_URL}
+      - UP_UNIFI_DEFAULT_USER=${UNIFI_USER}
+      - UP_UNIFI_DEFAULT_PASS=${UNIFI_PASS}
+      - UP_UNIFI_DEFAULT_URL=${UNIFI_URL}
+      - UP_POLLER_DEBUG=${POLLER_DEBUG}
+      - UP_UNIFI_DEFAULT_SAVE_DPI=${POLLER_SAVE_DPI}
