@@ -1,3 +1,5 @@
 /containers/unifi-controller/passwd
 /data
-.env
+.idea
+*.env
+creds-docker.txt

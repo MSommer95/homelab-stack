@@ -1,41 +1,86 @@
 version: '3'
 services:
-  #  smokeping:
-  #    #image: linuxserver/smokeping:57c0ea26-ls99
-  #    image: linuxserver/smokeping:latest
-  #    container_name: smokeping
-  #    hostname: smokeping
-  #    environment:
-  #      - PUID=1000
-  #      - PGID=1000
-  #      - TZ=Europe/Berlin
-  #    restart: unless-stopped
-  #    volumes:
-  #      - ./data/smokeping/config:/config
-  #      - ./data/smokeping/data:/data
-  #    ports:
-  #      - 8080:80
+  speedtest:
+    image: openspeedtest/latest
+    container_name: speedtest
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+      - "5002:3000"
+
+  speedtest-tracker:
+    container_name: speedtest-tracker
+    ports:
+      - '8380:80'
+      - '8343:443'
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - DB_CONNECTION=pgsql
+      - DB_HOST=speedtest-tracker-db
+      - DB_PORT=5432
+      - DB_DATABASE=speedtest_tracker
+      - DB_USERNAME=speedy
+      - DB_PASSWORD=password
+    volumes:
+      - './data/speedtest-tracker/config:/config'
+      - './data/speedtest-tracker/web:/etc/ssl/web'
+    image: 'ghcr.io/alexjustesen/speedtest-tracker:latest'
+    restart: unless-stopped
+    depends_on:
+      - speedtest-tracker-db
+
+  speedtest-tracker-db:
+    container_name: speedtest-tracker-db
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=speedtest_tracker
+      - POSTGRES_USER=speedy
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - ./data/speedtest-tracker/db:/var/lib/postgresql/data
+  
+
+  iperf:
+    image: networkstatic/iperf3
+    container_name: iperf
+    restart: unless-stopped
+    command: ["-s", "-V"]
+    network_mode: "host"
 
   influxdb:
-    image: influxdb:1.8.3
+    image: influxdb:2.7.1
     container_name: influxdb
+      #mem_limit: "4g"
     restart: always
     network_mode: "host"
     volumes:
-      - ./data/influxdb/data:/var/lib/influxdb
-      - ./data/influxdb/influxdb.conf:/etc/influxdb/influxdb.conf:ro
-      - ./data/influxdb/init:/docker-entrypoint-initdb.d
+      #- ./data/influxdb/data:/var/lib/influxdb
+      #- ./data/influxdb/influxdb.conf:/etc/influxdb/influxdb.conf:ro
+      - ./data/influxdb2:/var/lib/influxdb2
+      - ./data/influxdb2:/etc/influxdb2
+        #- ./data/influxdb/init:/docker-entrypoint-initdb.d
     environment:
       - INFLUXDB_ADMIN_USER=${INFLUXDB_USERNAME} # sourced from .env
       - INFLUXDB_ADMIN_PASSWORD=${INFLUXDB_PASSWORD} # sourced from .env
+        #      - DOCKER_INFLUXDB_INIT_MODE=upgrade
+        #      - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUXDB_USERNAME}
+        #      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUXDB_PASSWORD}
+        #      - DOCKER_INFLUXDB_INIT_ORG=homie
+        #      - DOCKER_INFLUXDB_INIT_BUCKET=homie-bucket
+        #      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${DOCKER_INFLUXDB_INIT_ADMIN_TOKEN}
 
   telegraf:
     build:
-      context: ./containers/telegraf
-    image: telegraf:raspi-stack
+      context: .
+      dockerfile: ./containers/telegraf/Dockerfile
     restart: always
     container_name: telegraf
     network_mode: "host"
+    init: true
+    command: ["--config-directory", "/etc/telegraf/telegraf.d"]
+    privileged: true
     environment:
       - HOST_ETC=/hostfs/etc
       - HOST_PROC=/hostfs/proc
@@ -46,14 +91,19 @@ services:
       - COMMUNITY_STRING=${COMMUNITY_STRING}
       - INFLUXDB_USERNAME=${INFLUXDB_USERNAME}
       - INFLUXDB_PASSWORD=${INFLUXDB_PASSWORD}
+      - INFLUXDB_ORG=${INFLUXDB_ORG}
+      - INFLUXDB_BUCKET=${INFLUXDB_BUCKET}
+      - INFLUXDB_AUTH_TOKEN=${INFLUXDB_ADMIN_TOKEN}
       - INFLUXDB_NAME=${INFLUXDB_NAME}
       - INFLUXDB_URL=${INFLUXDB_URL}
     volumes:
-      - ./data/influxdb/telegraf.conf:/etc/telegraf/telegraf.conf:ro
+      - ./data/telegraf/:/etc/telegraf/telegraf.d/:ro
       - /:/hostfs:ro
+      - /var/run/docker.sock:/var/run/docker.sock  
 
   grafana:
     container_name: grafana
+    user: "0"
     environment:
       - GF_SERVER_ROOT_URL=http://${IP_ADDRESS}:3000
       - GF_USERS_ALLOW_SIGN_UP=false
@@ -65,14 +115,18 @@ services:
       - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
       - GF_SECURITY_ADMIN_USER=${GF_ADMIN}
       - GF_SECURITY_ADMIN_PASSWORD=${GF_PASSWORD}
-      - GF_UNIFIED_ALERTING_ENABLED=false
-      - GF_ALERTING_ENABLED=true
-      - GF_RENDERING_SERVER_URL=http://${IP_ADDRESS}:8081/render
-      - GF_RENDERING_CALLBACK_URL=http://${IP_ADDRESS}:3000
+      - GF_UNIFIED_ALERTING_ENABLED=true
+      - GF_ALERTING_ENABLED=false
+      - GF_UNIFIED_ALERTING_SCREENSHOTS_CAPTURE=true
+      - GF_UNIFIED_ALERTING_SCREENSHOTS_UPLOAD_EXTERNAL_IMAGE_STORAGE=true
+      - GF_EXTERNAL_IMAGE_STORAGE_PROVIDER=local
+      - GF_RENDERING_SERVER_URL=http://${IP_ADDRESS}:8085/render
+      - GF_RENDERING_CALLBACK_URL=http://${IP_ADDRESS}:3005
     hostname: grafana
     image: grafana/grafana:latest
     restart: unless-stopped
-    network_mode: "host"
+    ports:
+      - 3005:3000
     volumes:
       # to be modified depending on your needs
       - ./data/grafana/data:/var/lib/grafana
@@ -82,34 +136,30 @@ services:
     container_name: grafana-renderer
     image: hferreira/grafana-image-renderer:latest
     hostname: grafana-renderer
-    network_mode: "host" 
+    ports:
+      - 8085:8081
     restart: unless-stopped
      
   unifi-poller:
     restart: always
-    image: golift/unifi-poller:${POLLER_TAG}
+    image: ghcr.io/unpoller/unpoller:${POLLER_TAG}
+    container_name: unpoller
     network_mode: "host"
     environment:
       - UP_INFLUXDB_DB=${INFLUXDB_NAME}
       - UP_INFLUXDB_USER=${INFLUXDB_USERNAME}
       - UP_INFLUXDB_PASS=${INFLUXDB_PASSWORD}
       - UP_INFLUXDB_URL=${INFLUXDB_URL}
+      - UP_INFLUXDB_ORG=${INFLUXDB_ORG}
+      - UP_INFLUXDB_BUCKET=${INFLUXDB_BUCKET}
+      - UP_INFLUXDB_AUTH_TOKEN=${INFLUXDB_ADMIN_TOKEN}
       - UP_UNIFI_DEFAULT_USER=${UNIFI_USER}
       - UP_UNIFI_DEFAULT_PASS=${UNIFI_PASS}
       - UP_UNIFI_DEFAULT_URL=${UNIFI_URL}
       - UP_POLLER_DEBUG=${POLLER_DEBUG}
       - UP_UNIFI_DEFAULT_SAVE_DPI=${POLLER_SAVE_DPI}
+      - UP_INFLUXDB_INTERVAL=1m
 
-        #iobroker:
-    #container_name: iobroker
-      #image: buanet/iobroker
-      #hostname: iobroker
-      #volumes:
-      #- ./data/iobroker:/opt/iobroker
-        #restart: always
-      #ports:
-      #      - "8082:8081"
-      #
   mosquitto:
     container_name: mosquitto
     image: eclipse-mosquitto:latest
@@ -119,3 +169,659 @@ services:
       - ./data/mosquitto/config:/mosquitto/config
     restart: unless-stopped
 
+  jellyfin:
+    image: jellyfin/jellyfin
+    container_name: jellyfin
+    network_mode: 'host'
+      #mem_limit: "2g"
+      #ports:
+      #- "8096:8096"
+    environment:
+      - JELLYFIN_PublishedServerUrl=http://jellyfin.homie.local
+        #- JELLYFIN_PublishedServerUrl=http://192.168.1.85:8096
+    volumes:
+      - ./data/jellyfin/config:/config
+      - ./data/jellyfin/cache:/cache
+      - /homiepool/media/Movies:/media/Movies
+      - /homiepool/media/Series:/media/Series
+    restart: 'unless-stopped'
+    # Optional - may be necessary for docker healthcheck to pass if running in host network mode
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    devices:
+      # VAAPI Devices (examples)
+      - /dev/dri/renderD128:/dev/dri/renderD128
+      - /dev/dri/card0:/dev/dri/card0
+
+  kuma:
+    container_name: uptime-kuma
+    image: louislam/uptime-kuma
+    volumes:
+      - ./data/uptime-kuma:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: 'unless-stopped'
+    ports:
+      - "5001:3001"
+
+  ntfy:
+    image: binwiederhier/ntfy
+    container_name: ntfy
+    command:
+      - serve
+    environment:
+      - TZ=UTC    # optional: set desired timezone
+    volumes:
+      - ./data/ntfy/var/cache/ntfy:/var/cache/ntfy
+      - ./data/ntfy/etc/ntfy:/etc/ntfy
+    ports:
+      - 8090:80
+    restart: unless-stopped
+
+      #  wg-easy:
+      #    environment:
+      # Change this to your host's public address
+      #      - WG_HOST=mshomelab.chickenkiller.com
+
+      # Optional:
+      ##      - PASSWORD=${WG_PASSWORD}
+      # - WG_PORT=51820
+      # - WG_DEFAULT_ADDRESS=10.8.0.x
+      #      - WG_DEFAULT_DNS=192.168.1.10
+      # - WG_MTU=1420
+      # - WG_ALLOWED_IPS=192.168.15.0/24, 10.0.1.0/24
+      # - WG_PRE_UP=echo "Pre Up" > /etc/wireguard/pre-up.txt
+      # - WG_POST_UP=echo "Post Up" > /etc/wireguard/post-up.txt
+      # - WG_PRE_DOWN=echo "Pre Down" > /etc/wireguard/pre-down.txt
+      # - WG_POST_DOWN=echo "Post Down" > /etc/wireguard/post-down.txt
+      
+      #    image: weejewel/wg-easy
+      #    container_name: wg-easy
+      #    volumes:
+      #      - ./data/wg-easy:/etc/wireguard
+      #    ports:
+      #      - "51820:51820/udp"
+      #      - "51821:51821/tcp"
+      #    restart: unless-stopped
+      #    cap_add:
+      #      - NET_ADMIN
+      #      - SYS_MODULE
+      #    sysctls:
+      #      - net.ipv4.ip_forward=1
+      #      - net.ipv4.conf.all.src_valid_mark=1
+
+  nginx:
+    container_name: nginx
+    image: 'jc21/nginx-proxy-manager:latest'
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./data/nginx:/data
+      - ./data/nginx/letsencrypt:/etc/letsencrypt
+
+  db:
+    container_name: mariadb-nextcloud
+    image: mariadb:10.5
+    restart: unless-stopped
+    command: --transaction-isolation=READ-COMMITTED --binlog-format=ROW
+    volumes:
+      - ./data/nextcloud/mariadb/db:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+
+  nextcloud:
+    container_name: nextcloud
+    image: nextcloud:latest
+    restart: unless-stopped
+    ports:
+      - 8080:80
+    links:
+      - db
+    volumes:
+      - /homiepool/nextcloud/data/:/var/www/html
+    environment:
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+      - MYSQL_HOST=db
+      - NEXTCLOUD_TRUSTED_DOMAINS=nextcloud.homie.local
+      - TRUSTED_PROXIES=192.168.1.85
+      - APACHE_DISABLE_REWRITE_IP=1
+
+  bazarr:
+    image: ghcr.io/linuxserver/bazarr:latest
+    container_name: bazarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Berlin
+    volumes:
+      - ./data/bazarr/config:/config
+      - /homiepool/media/Movies:/movies #optional
+      - /homiepool/media/Series:/tv #optional
+    ports:
+      - 6767:6767
+    restart: unless-stopped
+
+  radarr:
+    image: ghcr.io/linuxserver/radarr:latest
+    container_name: radarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Berlin
+    volumes:
+      - ./data/radarr/:/config
+      - /homiepool/media/Movies:/movies #optional
+      - /homiepool/radarr/downloads:/downloads #optional
+    ports:
+      - 7878:7878
+    restart: unless-stopped
+
+  sonarr:
+    image: ghcr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Berlin
+    volumes:
+      - ./data/sonarr:/config
+      - /homiepool/media/Series:/tv #optional
+      - /homiepool/sonarr/downloads:/downloads #optional
+    ports:
+      - 8989:8989
+    restart: unless-stopped
+
+
+  pihole:
+    container_name: pihole
+    image: pihole/pihole:latest
+    # For DHCP it is recommended to remove these ports and instead add: network_mode: "host"
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "67:67/udp" # Only required if you are using Pi-hole as your DHCP server
+      - "6080:80/tcp"
+    environment:
+      - TZ=Europe/Berlin
+      - WEBPASSWORD=MtuXn6gHYrcv
+    # Volumes store your data between container upgrades
+    volumes:
+      - './data/pihole/etc-pihole:/etc/pihole'
+      - './data/pihole/etc-dnsmasq.d:/etc/dnsmasq.d'
+    #   https://github.com/pi-hole/docker-pi-hole#note-on-capabilities
+    #cap_add:
+    #  - NET_ADMIN # Required if you are using Pi-hole as your DHCP server, else not needed
+    restart: unless-stopped
+
+  tasmota-admin:
+    container_name: tasmota-admin
+    image: ghcr.io/tasmoadmin/tasmoadmin:latest
+    restart: unless-stopped
+    ports:
+      - "9080:80"
+    
+    volumes:
+      - ./data/tasmoadmin/:/data
+
+  homeassistant:
+    container_name: homeassistant
+    image: "ghcr.io/home-assistant/home-assistant:stable"
+      #mem_limit: "1024m"
+    volumes:
+      - ./data/homeassistant:/config
+      - /etc/localtime:/etc/localtime:ro
+    restart: unless-stopped
+    privileged: true
+    network_mode: host
+
+
+  snapdrop:
+    image: ghcr.io/linuxserver/snapdrop:latest 
+    container_name: snapdrop
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Berlin
+    volumes:
+      - ./data/snapdrop:/config
+    ports:
+      - 3002:80
+      - 3003:443
+    restart: unless-stopped
+
+
+  cmk:
+    build:
+      context: .
+      dockerfile: ./containers/cmk/Dockerfile
+        #image: localhost:5000/cmk
+    container_name: cmk
+      #mem_limit: "2g"
+    environment:
+      - CMK_SITE_ID=cmk
+      - CMK_PASSWORD=${CMK_PASSWORD}
+    network_mode: "host"
+        #ports:
+        #- 7001:5000
+        #- 7002:8000
+    tmpfs:
+      - /opt/omd/sites/cmk/tmp:uid=1000,gid=1000
+    volumes:
+      - ./data/cmk:/omd/sites
+      - /etc/localtime:/etc/localtime:ro
+    restart: unless-stopped
+    labels:
+      - wud.watch=false
+
+  homepage:
+    image: ghcr.io/benphelps/homepage:latest
+    container_name: homepage
+    environment:
+      - HOMEPAGE_VAR_GF_ADMIN=${GF_ADMIN}
+      - HOMEPAGE_VAR_GF_PASSWORD=${GF_PASSWORD}
+    volumes:
+        - /:/hostfs:ro 
+        - ./data/homepage/config:/app/config
+        - /var/run/docker.sock:/var/run/docker.sock # pass local proxy
+    ports:
+        - 4000:3000
+    restart: unless-stopped
+
+
+######################################### immich #########################################
+
+  immich-server:
+    container_name: immich_server
+    image: altran1502/immich-server:release
+    command: [ "start-server.sh" ]
+    volumes:
+      - ${UPLOAD_LOCATION}:/usr/src/app/upload
+    ports:
+      - 3011:3001
+      - 9230:9230
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - redis
+      - database
+      - typesense
+    restart: unless-stopped
+
+  immich-microservices:
+    container_name: immich_microservices
+    image: altran1502/immich-server:release
+      #mem_limit: "512m"
+    command: [ "start-microservices.sh" ]
+    volumes:
+      - ${UPLOAD_LOCATION}:/usr/src/app/upload
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - redis
+      - database
+      - typesense
+    restart: unless-stopped
+
+  immich-machine-learning:
+    container_name: immich_machine_learning
+    image: altran1502/immich-machine-learning:release
+      #mem_limit: "4g"
+    ports:
+      - 3013:3003
+    volumes:
+      - ${UPLOAD_LOCATION}:/usr/src/app/upload
+      - ./data/immich/model-cache:/cache
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+
+  immich-web:
+    container_name: immich_web
+    image: altran1502/immich-web:release
+    ports:
+      - 3010:3000
+      - 24678:24678
+    env_file:
+      - .env
+    restart: unless-stopped
+
+  redis:
+    container_name: immich_redis
+    image: redis:6.2
+    restart: unless-stopped
+    ports:
+      - 5432:5432
+
+  database:
+    container_name: immich_postgres
+    image: postgres:14
+    env_file:
+      - .env
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_DB: ${DB_DATABASE_NAME}
+      PG_DATA: /var/lib/postgresql/data
+    volumes:
+      - ./data/immich/postgres:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  immich-proxy:
+    container_name: immich_proxy
+    image: altran1502/immich-proxy:release
+    environment:
+      # Make sure these values get passed through from the env file
+      IMMICH_SERVER_URL: ${IMMICH_SERVER_URL}
+      IMMICH_WEB_URL: ${IMMICH_WEB_URL}
+    ports:
+      - 2283:8080
+    logging:
+      driver: none
+    depends_on:
+      - immich-server
+    restart: unless-stopped
+
+  typesense:
+    container_name: immich_typesense
+    image: typesense/typesense:0.24.0
+    restart: unless-stopped
+    environment:
+      - TYPESENSE_API_KEY=${TYPESENSE_API_KEY}
+      - TYPESENSE_DATA_DIR=/data
+    logging:
+      driver: none
+    volumes:
+      - ./data/immich/typesense:/data
+
+####################################################################################
+
+
+  whatsupdocker:
+    image: fmartinou/whats-up-docker:latest
+    container_name: wud
+    hostname: wud
+    restart: unless-stopped
+    environment:
+      WUD_WATCHER_LOCAL_CRON: 0 0 * * *
+        #WUD_REGISTRY_HUB_LOGIN: ${DOCKER_UNAME} 
+        #WUD_REGISTRY_HUB_PASSWORD: ${DOCKER_UPWD}
+        #WUD_REGISTRY_HUB_TOKEN: ${DOCKER_TOKEN}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./data/wdu:/store
+    ports:
+      - 3014:3000
+
+  scrutiny:
+    container_name: scrutiny
+    image: ghcr.io/analogj/scrutiny:master-omnibus
+    restart: unless-stopped
+    cap_add:
+      - SYS_RAWIO
+      - SYS_ADMIN
+    ports:
+      - "8083:8080" # webapp
+      - "8084:8086" # influxDB admin
+    volumes:
+      - /run/udev:/run/udev:ro
+      - ./data/scrutiny/config:/opt/scrutiny/config
+      - ./data/scrutiny/influxdb:/opt/scrutiny/influxdb
+    devices:
+      - "/dev/sda"
+      - "/dev/sdb"
+      - "/dev/sdc"
+      - "/dev/sdd"
+      - "/dev/nvme0"
+
+        #  smtp:
+        #    container_name: smtp
+        #    image: tremolosecurity/smtp-blackhole
+        #    network_mode: "host" 
+
+  web_recipes:
+    container_name: recipes
+    restart: unless-stopped
+    image: vabene1111/recipes
+      #    ports:
+      #     - "8008:8080"
+    environment:
+      #ALLOWED_HOSTS: *
+      ENABLE_PDF_EXPORT: 1
+      DEBUG: 0
+      SQL_DEBUG: 0
+      DEBUG_TOOLBAR: 0
+      GUNICORN_MEDIA: 0
+      TIMEZONE: Europe/Berlin
+      SECRET_KEY: ${RECIPE_TOKEN}
+      DB_ENGINE: django.db.backends.postgresql
+      POSTGRES_HOST: ${DB_HOSTNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_DB: ${DB_DATABASE_NAME}
+      POSTGRES_PORT: 5432
+        #MEDIA_URL: /opt/recipes/mediafiles/
+    volumes:
+      - ./data/recipes/externalfiles:/opt/recipes/externalfiles
+      - ./data/recipes/staticfiles:/opt/recipes/staticfiles
+      - ./data/recipes/nginx_config:/opt/recipes/nginx/conf.d
+      - ./data/recipes/mediafiles:/opt/recipes/mediafiles
+    depends_on:
+      - database
+  nginx_recipes:
+    container_name: nginx-recipes
+    image: nginx:mainline-alpine
+    restart: always
+    ports:
+      - 8008:80
+    depends_on:
+      - web_recipes
+    volumes:
+      - ./data/recipes/externalfiles:/opt/recipes/externalfiles:ro
+      - ./data/recipes/nginx_config:/etc/nginx/conf.d:ro
+      - ./data/recipes/staticfiles:/static:ro
+      - ./data/recipes/mediafiles:/media:ro
+
+  navidrome:
+    image: deluan/navidrome:latest
+    #user: 1000:1000 # should be owner of volumes
+    container_name: navidrome
+    network_mode: "host"
+    #ports:
+    #  - "4533:4533"
+    restart: unless-stopped
+    environment:
+      # Optional: put your config options customization here. Examples:
+      ND_SCANSCHEDULE: 168h
+      ND_LOGLEVEL: info
+      ND_SESSIONTIMEOUT: 168h
+      #ND_BASEURL: ""
+    volumes:
+      - "/homiepool/navidrome/data:/data"
+      - "/homiepool/media/Music:/music:ro"
+
+
+
+######################################### Fireflyiii #########################################
+
+  fireflyiii:
+    container_name: fireflyiii
+    image: fireflyiii/core:latest
+    hostname: app
+    networks:
+      - firefly_iii
+    restart: unless-stopped
+    volumes:
+      - ./data/fireflyiii//upload:/var/www/html/storage/upload
+    env_file: .firefly.env
+    ports:
+      - '8010:8080'
+    depends_on:
+      - fireflydb
+
+  fireflydb:
+    container_name: fireflyiii_db
+    image: mariadb
+    hostname: fireflyiiidb
+    networks:
+      - firefly_iii
+    restart: unless-stopped
+    env_file: .firefly.db.env
+    volumes:
+      - ./data/fireflyiii/db:/var/lib/mysql
+
+  fireflyimporter:
+    container_name: fireflyiii_importer
+    image: fireflyiii/data-importer:latest
+    hostname: importer
+    networks:
+      - firefly_iii
+    restart: unless-stopped
+    ports:
+      - '8011:8080'
+    depends_on:
+      - fireflyiii
+    env_file: .firefly.importer.env
+
+  fireflycron:
+    container_name: fireflyiii_cron
+    #
+    # To make this work, set STATIC_CRON_TOKEN in your .env file or as an environment variable and replace REPLACEME below
+    # The STATIC_CRON_TOKEN must be *exactly* 32 characters long
+    #
+    image: alpine
+    command: sh -c "echo \"0 3 * * * wget -qO- http://app:8080/api/v1/cron/nJvpGdncfGLBThHJXdbHgTmwWmkrJiYG\" | crontab - && crond -f -L /dev/stdout"
+
+######################################### Prometheus #########################################
+
+  prometheus:
+    container_name: prom-server
+    image: prom/prometheus
+    volumes:
+      - ./data/prometheus/etc:/etc/prometheus/
+      - ./data/prometheus/data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    user: "root" 
+    ports:
+      - 9091:9090
+    links:
+      - alertmanager:alertmanager
+    networks:
+      - prometheus
+    restart: unless-stopped
+
+      #  node-exporter:
+      #    container_name: prom-exporter
+      #    image: prom/node-exporter
+      #    volumes:
+      #      - /proc:/host/proc:ro
+      #      - /sys:/host/sys:ro
+      #      - /:/rootfs:ro
+      #    command: 
+      #      - '--path.procfs=/host/proc' 
+      #      - '--path.sysfs=/host/sys'
+      #      - --collector.processes 
+      #      - --collector.perf
+      #      - --collector.filesystem.ignored-mount-points
+      #      - "^/(sys|proc|dev|host|etc|rootfs/var/lib/docker/containers|rootfs/var/lib/docker/overlay2|rootfs/run/docker/netns|rootfs/var/lib/docker/aufs)($$|/)"
+      #    ports:
+      #      - 9092:9100
+      #    networks:
+      #      - prometheus
+      #    restart: unless-stopped
+
+  alertmanager:
+    container_name: prom-alertmanager
+    image: prom/alertmanager
+    ports:
+      - 9093:9093
+        #volumes:
+        #- ./data/alertmanager/:/etc/alertmanager/
+    networks:
+      - prometheus 
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+
+        #  cadvisor:
+        #    container_name: cadvisor
+        #    image: gcr.io/cadvisor/cadvisor
+        #    volumes:
+        #      - /:/rootfs:ro
+        #      - /var/run:/var/run:rw
+        #      - /sys:/sys:ro
+        #      - /var/lib/docker/:/var/lib/docker:ro
+        #    ports:
+        #      - 9094:8080
+        #    networks:
+        #      - prometheus
+        #    restart: unless-stopped
+
+  pihole-exporter:
+    container_name: pihole-exporter
+    image: ekofr/pihole-exporter:latest
+    restart: unless-stopped
+    ports:
+      - 9617:9617
+    environment:
+      - PORT=9617
+      - PIHOLE_PROTOCOL=http,http
+      - PIHOLE_PASSWORD=MtuXn6gHYrcv
+      - PIHOLE_HOSTNAME=192.168.1.10,192.168.1.85
+      - PIHOLE_PORT=80,6080
+
+  pialert:
+    container_name: pialert
+    image: "jokobsk/pi.alert:latest"      
+    network_mode: "host"        
+    restart: unless-stopped
+    volumes:
+      - ./data/pialert/config:/home/pi/pialert/config
+      - ./data/pialert/db:/home/pi/pialert/db      
+      # (optional) useful for debugging if you have issues setting up the container
+      - ./data/pialert/logs:/home/pi/pialert/front/log
+    environment:
+      - TZ=Europe/Berlin      
+      - HOST_USER_ID=1000
+      - HOST_USER_GID=1000
+      - PORT=20211
+
+  apprise:
+    container_name: apprise
+    image: caronc/apprise:latest
+    restart: unless-stopped
+    ports:
+      - 8888:8000
+    volumes:
+      - ./data/apprise/config:/config
+
+  tankerkoenig-exporter:
+    container_name: tanker-exporter
+    image: ghcr.io/lukasmalkmus/tankerkoenig_exporter:0.12.0
+    restart: unless-stopped
+    ports:
+      - 9386:9386
+    environment:
+      - TANKERKOENIG_API_KEY=${TANKERKOENIG_API_KEY}
+    command:
+      - '--tankerkoenig.location=${TANKERKOENIG_LOCATION}'
+      - '--tankerkoenig.radius=5'
+
+networks:
+  firefly_iii:
+    driver: bridge
+  prometheus:

@@ -43,21 +43,22 @@ if [ "$1" = "create" ]; then
     openssl req -newkey rsa:4096 -x509 -sha256 -days 3650 -nodes -out ${WD}/data/ssl/raspi.crt -keyout ${WD}/data/ssl/raspi.key
 fi
 if [ "$1" = "start" ]; then
-    docker-compose -f ${WD}/docker-compose.yml build 
-    docker-compose -f ${WD}/docker-compose.yml up -d --remove-orphans
+    docker compose -f ${WD}/docker-compose.yml build 
+    docker compose -f ${WD}/docker-compose.yml up -d --remove-orphans
 fi
 if [ "$1" = "stop" ]; then
-    docker-compose -f ${WD}/docker-compose.yml stop
+    docker compose -f ${WD}/docker-compose.yml stop
 fi
 if [ "$1" = "update" ]; then
-    docker-compose -f ${WD}/docker-compose.yml pull
-    docker-compose up -d
+    docker compose -f ${WD}/docker-compose.yml pull
+    docker compose -f ${WD}/docker-compose.yml build
+    docker compose up -d
     docker image prune
 fi
 if [ "$1" = "remove" ]; then
-    docker-compose -f ${WD}/docker-compose.yml down -v
+    docker compose -f ${WD}/docker-compose.yml down -v
     rm -r ./data
 fi
 if [ "$1" = "logs" ]; then
-    docker-compose logs -f
+    docker compose logs -f
 fi
