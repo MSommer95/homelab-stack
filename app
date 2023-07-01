@@ -33,6 +33,8 @@ fi
 
 source_file .env 
 
+COMPOSE_FILES=( -f ${WD}/docker-compose.main.yml -f ${WD}/docker-compose.monitoring.yml -f ${WD}/docker-compose.media.yml -f ${WD}/docker-compose.immich.yml -f ${WD}/docker-compose.firefliii.yml )
+
 
 if [ "$1" = "create" ]; then
     mkdir -p ${WD}/data/ssl
@@ -43,21 +45,21 @@ if [ "$1" = "create" ]; then
     openssl req -newkey rsa:4096 -x509 -sha256 -days 3650 -nodes -out ${WD}/data/ssl/raspi.crt -keyout ${WD}/data/ssl/raspi.key
 fi
 if [ "$1" = "start" ]; then
-    docker compose -f ${WD}/docker-compose.yml build 
-    docker compose -f ${WD}/docker-compose.yml up -d --remove-orphans
+    docker compose "${COMPOSE_FILES[@]}" build
+    docker compose "${COMPOSE_FILES[@]}" up -d --remove-orphans
 fi
 if [ "$1" = "stop" ]; then
-    docker compose -f ${WD}/docker-compose.yml stop
+    docker compose "${COMPOSE_FILES[@]}" stop
 fi
 if [ "$1" = "update" ]; then
-    docker compose -f ${WD}/docker-compose.yml pull
-    docker compose -f ${WD}/docker-compose.yml build
+    docker compose "${COMPOSE_FILES[@]}" pull
+    docker compose "${COMPOSE_FILES[@]}" build
     docker compose up -d
     docker image prune
 fi
 if [ "$1" = "remove" ]; then
-    docker compose -f ${WD}/docker-compose.yml down -v
-    rm -r ./data
+    docker compose "${COMPOSE_FILES[@]}" down -v
+    #rm -r ./data
 fi
 if [ "$1" = "logs" ]; then
     docker compose logs -f

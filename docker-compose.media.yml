@@ -1,0 +1,191 @@
+version: '3'
+services:
+
+######################################### Jellyfin #########################################
+
+  jellyfin:
+    image: jellyfin/jellyfin
+    container_name: jellyfin
+    network_mode: 'host'
+      #mem_limit: "2g"
+      #ports:
+      #- "8096:8096"
+    environment:
+      - JELLYFIN_PublishedServerUrl=http://jellyfin.homie.local
+        #- JELLYFIN_PublishedServerUrl=http://192.168.1.85:8096
+    volumes:
+      - ./data/jellyfin/config:/config
+      - ./data/jellyfin/cache:/cache
+      - /homiepool/media/Movies:/media/Movies
+      - /homiepool/media/Series:/media/Series
+    restart: 'unless-stopped'
+    # Optional - may be necessary for docker healthcheck to pass if running in host network mode
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    devices:
+      # VAAPI Devices (examples)
+      - /dev/dri/renderD128:/dev/dri/renderD128
+      - /dev/dri/card0:/dev/dri/card0
+
+######################################### arr-stack #########################################
+
+  bazarr:
+    image: ghcr.io/linuxserver/bazarr:latest
+    container_name: bazarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Berlin
+    volumes:
+      - ./data/bazarr/config:/config
+      - /homiepool/media/Movies:/movies #optional
+      - /homiepool/media/Series:/tv #optional
+    ports:
+      - "6767:6767"
+    restart: unless-stopped
+
+  radarr:
+    image: ghcr.io/linuxserver/radarr:latest
+    container_name: radarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Berlin
+    volumes:
+      - ./data/radarr/:/config
+      - /homiepool/media/Movies:/movies #optional
+      - /homiepool/radarr/downloads:/downloads #optional
+    ports:
+      - "7878:7878"
+    restart: unless-stopped
+
+  sonarr:
+    image: ghcr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Berlin
+    volumes:
+      - ./data/sonarr:/config
+      - /homiepool/media/Series:/tv #optional
+      - /homiepool/sonarr/downloads:/downloads #optional
+    ports:
+      - "8989:8989"
+    restart: unless-stopped
+
+######################################### Nextcloud #########################################
+
+  nextcloud:
+    container_name: nextcloud
+    image: nextcloud:latest
+    restart: unless-stopped
+    ports:
+      - 8080:80
+    links:
+      - db
+    volumes:
+      - /homiepool/nextcloud/data/:/var/www/html
+    environment:
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+      - MYSQL_HOST=db
+      - NEXTCLOUD_TRUSTED_DOMAINS=nextcloud.homie.local
+      - TRUSTED_PROXIES=192.168.1.85
+      - APACHE_DISABLE_REWRITE_IP=1
+
+  db:
+    container_name: mariadb-nextcloud
+    image: mariadb:10.5
+    restart: unless-stopped
+    command: --transaction-isolation=READ-COMMITTED --binlog-format=ROW
+    volumes:
+      - ./data/nextcloud/mariadb/db:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+
+######################################### Recipes #########################################
+
+  web_recipes:
+    container_name: recipes
+    restart: unless-stopped
+    image: vabene1111/recipes
+      #    ports:
+      #     - "8008:8080"
+    environment:
+      #ALLOWED_HOSTS: *
+      ENABLE_PDF_EXPORT: 1
+      DEBUG: 0
+      SQL_DEBUG: 0
+      DEBUG_TOOLBAR: 0
+      GUNICORN_MEDIA: 0
+      TIMEZONE: Europe/Berlin
+      SECRET_KEY: ${RECIPE_TOKEN}
+      DB_ENGINE: django.db.backends.postgresql
+      POSTGRES_HOST: ${DB_HOSTNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_DB: ${DB_DATABASE_NAME}
+      POSTGRES_PORT: 5432
+        #MEDIA_URL: /opt/recipes/mediafiles/
+    volumes:
+      - ./data/recipes/externalfiles:/opt/recipes/externalfiles
+      - ./data/recipes/staticfiles:/opt/recipes/staticfiles
+      - ./data/recipes/nginx_config:/opt/recipes/nginx/conf.d
+      - ./data/recipes/mediafiles:/opt/recipes/mediafiles
+    depends_on:
+      - database
+
+  nginx_recipes:
+    container_name: nginx-recipes
+    image: nginx:mainline-alpine
+    restart: always
+    ports:
+      - "8008:80"
+    depends_on:
+      - web_recipes
+    volumes:
+      - ./data/recipes/externalfiles:/opt/recipes/externalfiles:ro
+      - ./data/recipes/nginx_config:/etc/nginx/conf.d:ro
+      - ./data/recipes/staticfiles:/static:ro
+      - ./data/recipes/mediafiles:/media:ro
+
+######################################### Navidrome #########################################
+
+  navidrome:
+    image: deluan/navidrome:latest
+    #user: 1000:1000 # should be owner of volumes
+    container_name: navidrome
+    network_mode: "host"
+    #ports:
+    #  - "4533:4533"
+    restart: unless-stopped
+    environment:
+      # Optional: put your config options customization here. Examples:
+      ND_SCANSCHEDULE: 168h
+      ND_LOGLEVEL: info
+      ND_SESSIONTIMEOUT: 168h
+      #ND_BASEURL: ""
+    volumes:
+      - "/homiepool/navidrome/data:/data"
+      - "/homiepool/media/Music:/music:ro"
+
+######################################### Snapdrop #########################################
+
+  snapdrop:
+    image: ghcr.io/linuxserver/snapdrop:latest
+    container_name: snapdrop
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Berlin
+    volumes:
+      - ./data/snapdrop:/config
+    ports:
+      - 3002:80
+      - 3003:443
+    restart: unless-stopped

@@ -1,0 +1,56 @@
+version: '3'
+services:
+
+######################################### Fireflyiii #########################################
+
+  fireflyiii:
+    container_name: fireflyiii
+    image: fireflyiii/core:latest
+    hostname: app
+    networks:
+      - firefly_iii
+    restart: unless-stopped
+    volumes:
+      - ./data/fireflyiii//upload:/var/www/html/storage/upload
+    env_file: .firefly.env
+    ports:
+      - '8010:8080'
+    depends_on:
+      - fireflydb
+
+  fireflydb:
+    container_name: fireflyiii_db
+    image: mariadb
+    hostname: fireflyiiidb
+    networks:
+      - firefly_iii
+    restart: unless-stopped
+    env_file: .firefly.db.env
+    volumes:
+      - ./data/fireflyiii/db:/var/lib/mysql
+
+  fireflyimporter:
+    container_name: fireflyiii_importer
+    image: fireflyiii/data-importer:latest
+    hostname: importer
+    networks:
+      - firefly_iii
+    restart: unless-stopped
+    ports:
+      - '8011:8080'
+    depends_on:
+      - fireflyiii
+    env_file: .firefly.importer.env
+
+  fireflycron:
+    container_name: fireflyiii_cron
+    #
+    # To make this work, set STATIC_CRON_TOKEN in your .env file or as an environment variable and replace REPLACEME below
+    # The STATIC_CRON_TOKEN must be *exactly* 32 characters long
+    #
+    image: alpine
+    command: sh -c "echo \"0 3 * * * wget -qO- http://app:8080/api/v1/cron/nJvpGdncfGLBThHJXdbHgTmwWmkrJiYG\" | crontab - && crond -f -L /dev/stdout"
+
+networks:
+  firefly_iii:
+    driver: bridge
