@@ -141,6 +141,8 @@ services:
       - INFLUXDB_AUTH_TOKEN=${INFLUXDB_ADMIN_TOKEN}
       - INFLUXDB_NAME=${INFLUXDB_NAME}
       - INFLUXDB_URL=${INFLUXDB_URL}
+      - MQTT_USERNAME=${MQTT_USERNAME}
+      - MQTT_PASSWORD=${MQTT_PASSWORD}
     volumes:
       - ./data/telegraf/:/etc/telegraf/telegraf.d/:ro
       - /:/hostfs:ro
