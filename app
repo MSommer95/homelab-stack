@@ -45,12 +45,12 @@ fi
 if [ "$1" = "update" ]; then
     docker compose "${COMPOSE_FILES[@]}" pull
     docker compose "${COMPOSE_FILES[@]}" build
-    docker compose up -d
+    docker compose "${COMPOSE_FILES[@]}" up -d
     docker image prune
 fi
 if [ "$1" = "remove" ]; then
     docker compose "${COMPOSE_FILES[@]}" down -v
 fi
 if [ "$1" = "logs" ]; then
-    docker compose logs -f
+    docker compose "${COMPOSE_FILES[@]}" logs -f
 fi

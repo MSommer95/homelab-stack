@@ -1,4 +1,4 @@
-version: '3'
+version: '3.9'
 services:
 
 ######################################### Grafana #########################################
@@ -203,19 +203,6 @@ services:
     ports:
       - "5001:3001"
 
-  ntfy:
-    image: binwiederhier/ntfy
-    container_name: ntfy
-    command:
-      - serve
-    environment:
-      - TZ=UTC    # optional: set desired timezone
-    volumes:
-      - ./data/ntfy/var/cache/ntfy:/var/cache/ntfy
-      - ./data/ntfy/etc/ntfy:/etc/ntfy
-    ports:
-      - "8090:80"
-    restart: unless-stopped
 
 ######################################### Checkmk #########################################
 
@@ -337,7 +324,7 @@ services:
     image: ghcr.io/lukasmalkmus/tankerkoenig_exporter:0.12.0
     restart: unless-stopped
     ports:
-      - 9386:9386
+      - "9386:9386"
     environment:
       - TANKERKOENIG_API_KEY=${TANKERKOENIG_API_KEY}
     command:
