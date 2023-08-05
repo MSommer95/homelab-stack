@@ -5,8 +5,8 @@ services:
 
   immich-server:
     container_name: immich_server
-    image: altran1502/immich-server:release
-    command: [ "start-server.sh" ]
+    image: ghcr.io/immich-app/immich-server:release
+    command: [ "start.sh", "immich" ]
     volumes:
       - ${UPLOAD_LOCATION}:/usr/src/app/upload
     ports:
@@ -24,9 +24,9 @@ services:
 
   immich-microservices:
     container_name: immich_microservices
-    image: altran1502/immich-server:release
+    image: ghcr.io/immich-app/immich-server:release
       #mem_limit: "512m"
-    command: [ "start-microservices.sh" ]
+    command: [ "start.sh", "microservices" ]
     volumes:
       - ${UPLOAD_LOCATION}:/usr/src/app/upload
     env_file:
@@ -41,7 +41,7 @@ services:
 
   immich-machine-learning:
     container_name: immich_machine_learning
-    image: altran1502/immich-machine-learning:release
+    image: ghcr.io/immich-app/immich-machine-learning:release
       #mem_limit: "4g"
     ports:
       - "3013:3003"
@@ -56,7 +56,7 @@ services:
 
   immich-web:
     container_name: immich_web
-    image: altran1502/immich-web:release
+    image: ghcr.io/immich-app/immich-web:release
     ports:
       - "3010:3000"
       - "24678:24678"
@@ -73,7 +73,7 @@ services:
 
   immich-proxy:
     container_name: immich_proxy
-    image: altran1502/immich-proxy:release
+    image: ghcr.io/immich-app/immich-proxy:release
     environment:
       # Make sure these values get passed through from the env file
       IMMICH_SERVER_URL: ${IMMICH_SERVER_URL}
@@ -84,11 +84,12 @@ services:
       driver: none
     depends_on:
       - immich-server
+      - immich-web
     restart: unless-stopped
 
   typesense:
     container_name: immich_typesense
-    image: typesense/typesense:0.24.0
+    image: typesense/typesense:0.24.1
     restart: unless-stopped
     environment:
       - TYPESENSE_API_KEY=${TYPESENSE_API_KEY}

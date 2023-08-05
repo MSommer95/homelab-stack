@@ -1,7 +1,7 @@
 version: '3.9'
 services:
 
-######################################### Jellyfin #########################################
+  ######################################### Jellyfin #########################################
 
   jellyfin:
     image: jellyfin/jellyfin
@@ -9,10 +9,10 @@ services:
     network_mode: 'host'
       #mem_limit: "2g"
       #ports:
-      #- "8096:8096"
+    #- "8096:8096"
     environment:
       - JELLYFIN_PublishedServerUrl=http://jellyfin.homie.local
-        #- JELLYFIN_PublishedServerUrl=http://192.168.1.85:8096
+      #- JELLYFIN_PublishedServerUrl=http://192.168.1.85:8096
     volumes:
       - ./data/jellyfin/config:/config
       - ./data/jellyfin/cache:/cache
@@ -27,7 +27,7 @@ services:
       - /dev/dri/renderD128:/dev/dri/renderD128
       - /dev/dri/card0:/dev/dri/card0
 
-######################################### arr-stack #########################################
+  ######################################### arr-stack #########################################
 
   bazarr:
     image: ghcr.io/linuxserver/bazarr:latest
@@ -35,7 +35,7 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
-      - TZ=Europe/Berlin
+      - TZ=${TZ}
     volumes:
       - ./data/bazarr/config:/config
       - /homiepool/media/Movies:/movies #optional
@@ -50,7 +50,7 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
-      - TZ=Europe/Berlin
+      - TZ=${TZ}
     volumes:
       - ./data/radarr/:/config
       - /homiepool/media/Movies:/movies #optional
@@ -65,7 +65,7 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
-      - TZ=Europe/Berlin
+      - TZ=${TZ}
     volumes:
       - ./data/sonarr:/config
       - /homiepool/media/Series:/tv #optional
@@ -74,14 +74,28 @@ services:
       - "8989:8989"
     restart: unless-stopped
 
-######################################### Nextcloud #########################################
+  jellyseerr:
+    image: fallenbagel/jellyseerr:latest
+    container_name: jellyseerr
+    environment:
+      - LOG_LEVEL=debug
+      - TZ=${TZ}
+    ports:
+      - "5055:5055"
+    volumes:
+      - ./data/jellyseerr/config:/app/config
+    restart: unless-stopped
+
+    
+
+  ######################################### Nextcloud #########################################
 
   nextcloud:
     container_name: nextcloud
     image: nextcloud:latest
     restart: unless-stopped
     ports:
-      - 8080:80
+      - "8080:80"
     links:
       - db
     volumes:
@@ -91,7 +105,7 @@ services:
       - MYSQL_DATABASE=nextcloud
       - MYSQL_USER=nextcloud
       - MYSQL_HOST=db
-      - NEXTCLOUD_TRUSTED_DOMAINS=nextcloud.homie.local
+      - NEXTCLOUD_TRUSTED_DOMAINS=nextcloud.homie.local nextcloud.homiems.duckdns.org
       - TRUSTED_PROXIES=192.168.1.85
       - APACHE_DISABLE_REWRITE_IP=1
 
@@ -108,14 +122,14 @@ services:
       - MYSQL_DATABASE=nextcloud
       - MYSQL_USER=nextcloud
 
-######################################### Recipes #########################################
+  ######################################### Recipes #########################################
 
   web_recipes:
     container_name: recipes
     restart: unless-stopped
     image: vabene1111/recipes
       #    ports:
-      #     - "8008:8080"
+    #     - "8008:8080"
     environment:
       #ALLOWED_HOSTS: *
       ENABLE_PDF_EXPORT: 1
@@ -123,7 +137,7 @@ services:
       SQL_DEBUG: 0
       DEBUG_TOOLBAR: 0
       GUNICORN_MEDIA: 0
-      TIMEZONE: Europe/Berlin
+      TIMEZONE: ${TZ}
       SECRET_KEY: ${RECIPE_TOKEN}
       DB_ENGINE: django.db.backends.postgresql
       POSTGRES_HOST: ${DB_HOSTNAME}
@@ -131,7 +145,7 @@ services:
       POSTGRES_USER: ${DB_USERNAME}
       POSTGRES_DB: ${DB_DATABASE_NAME}
       POSTGRES_PORT: 5432
-        #MEDIA_URL: /opt/recipes/mediafiles/
+      #MEDIA_URL: /opt/recipes/mediafiles/
     volumes:
       - ./data/recipes/externalfiles:/opt/recipes/externalfiles
       - ./data/recipes/staticfiles:/opt/recipes/staticfiles
@@ -154,7 +168,7 @@ services:
       - ./data/recipes/staticfiles:/static:ro
       - ./data/recipes/mediafiles:/media:ro
 
-######################################### Navidrome #########################################
+  ######################################### Navidrome #########################################
 
   navidrome:
     image: deluan/navidrome:latest
@@ -174,7 +188,7 @@ services:
       - "/homiepool/navidrome/data:/data"
       - "/homiepool/media/Music:/music:ro"
 
-######################################### Snapdrop #########################################
+  ######################################### Snapdrop #########################################
 
   snapdrop:
     image: ghcr.io/linuxserver/snapdrop:latest
@@ -186,6 +200,49 @@ services:
     volumes:
       - ./data/snapdrop:/config
     ports:
-      - 3002:80
-      - 3003:443
+      - "3002:80"
+      - "3003:443"
     restart: unless-stopped
+
+  ######################################### GameVault #########################################
+
+  gamevault-backend:
+    image: phalcode/gamevault-backend:latest
+    restart: unless-stopped
+    container_name: gamevault-backend
+    environment:
+      DB_HOST: gamevault-db
+      DB_USERNAME: gamevault
+      DB_PASSWORD: ${PG_PASSWORD}
+      # The Following Line grants Admin Role to account with this username upon registration.
+      SERVER_ADMIN_USERNAME: admin
+      # Uncomment and Insert your RAWG API Key here if you have one (http://rawg.io/login?forward=developer)
+      RAWG_API_KEY: ${RAWG_API_KEY}
+    volumes:
+      # Mount the folder where your games are
+      - /homiepool/media/Games:/files
+      # Mount the folder where gamevault should store its images
+      - ./data/gamevault/images:/images
+    ports:
+      - "8088:8080"
+
+  gamevault-db:
+    container_name: gamevault-db
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: gamevault
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+      POSTGRES_DB: gamevault
+    volumes:
+      # Mount the folder where your postgres database files should land
+      - ./data/gamevault/db:/var/lib/postgresql
+
+  ######################################### Excalidraw #########################################
+
+  excalidraw:
+    container_name: excalidraw
+    image: excalidraw/excalidraw:latest
+    restart: unless-stopped
+    ports:
+      - "5003:80"

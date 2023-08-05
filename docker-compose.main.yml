@@ -78,6 +78,18 @@ services:
     volumes:
       - ./data/apprise/config:/config
 
+
+######################################### Rancher Test #########################################
+
+        #  rancher:
+        #    container_name: rancher
+        #    image: rancher/rancher:latest
+        #    restart: unless-stopped
+        #    privileged: true
+        #    ports:
+        #      - "8800:80"
+        #      - "8443:443"
+
 ######################################### Disabled #########################################
 
 #  smtp:
