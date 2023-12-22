@@ -1,0 +1,13 @@
+version: '3.9'
+services:
+
+######################################### Rancher Test #########################################
+
+  rancher:
+    container_name: rancher
+    image: rancher/rancher:latest
+    restart: unless-stopped
+    privileged: true
+    ports:
+      - "8800:80"
+      - "8443:443"
