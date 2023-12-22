@@ -38,11 +38,17 @@ services:
 ######################################### Homepage #########################################
 
   homepage:
-    image: ghcr.io/benphelps/homepage:latest
+    image: ghcr.io/gethomepage/homepage:latest 
     container_name: homepage
     environment:
       - HOMEPAGE_VAR_GF_ADMIN=${GF_ADMIN}
       - HOMEPAGE_VAR_GF_PASSWORD=${GF_PASSWORD}
+      - JDOWNLOADER_USER=${JDOWNLOADER_USER}
+      - JDOWNLOADER_PW=${JDOWNLOADER_PW}
+      - JDOWNLOADER_CLIENT=${JDOWNLOADER_CLIENT}
+      - HOMEPAGE_VAR_UNIFI_USER=${UNIFI_USER}
+      - HOMEPAGE_VAR_UNIFI_PASS=${UNIFI_PASS}
+      - HOMEPAGE_VAR_UNIFI_URL=${UNIFI_URL}
     volumes:
         - /:/hostfs:ro 
         - ./data/homepage/config:/app/config
@@ -55,7 +61,7 @@ services:
 
   database:
     container_name: postgres
-    image: postgres:14
+    image: tensorchord/pgvecto-rs:pg14-v0.1.11
     env_file:
       - .env
     environment:
@@ -67,65 +73,12 @@ services:
       - ./data/postgres:/var/lib/postgresql/data
     restart: unless-stopped
 
-######################################### Apprise Notifications #########################################
 
-  apprise:
-    container_name: apprise
-    image: caronc/apprise:latest
+######################################### IT Tools #########################################
+
+  it-tools:
+    container_name: it-tools
+    image: ghcr.io/corentinth/it-tools:latest
     restart: unless-stopped
     ports:
-      - "8888:8000"
-    volumes:
-      - ./data/apprise/config:/config
-
-
-######################################### Rancher Test #########################################
-
-        #  rancher:
-        #    container_name: rancher
-        #    image: rancher/rancher:latest
-        #    restart: unless-stopped
-        #    privileged: true
-        #    ports:
-        #      - "8800:80"
-        #      - "8443:443"
-
-######################################### Disabled #########################################
-
-#  smtp:
-#    container_name: smtp
-#    image: tremolosecurity/smtp-blackhole
-#    network_mode: "host"
-
-
-#  wg-easy:
-#    environment:
-# Change this to your host's public address
-#      - WG_HOST=mshomelab.chickenkiller.com
-
-# Optional:
-##      - PASSWORD=${WG_PASSWORD}
-# - WG_PORT=51820
-# - WG_DEFAULT_ADDRESS=10.8.0.x
-#      - WG_DEFAULT_DNS=192.168.1.10
-# - WG_MTU=1420
-# - WG_ALLOWED_IPS=192.168.15.0/24, 10.0.1.0/24
-# - WG_PRE_UP=echo "Pre Up" > /etc/wireguard/pre-up.txt
-# - WG_POST_UP=echo "Post Up" > /etc/wireguard/post-up.txt
-# - WG_PRE_DOWN=echo "Pre Down" > /etc/wireguard/pre-down.txt
-# - WG_POST_DOWN=echo "Post Down" > /etc/wireguard/post-down.txt
-
-#    image: weejewel/wg-easy
-#    container_name: wg-easy
-#    volumes:
-#      - ./data/wg-easy:/etc/wireguard
-#    ports:
-#      - "51820:51820/udp"
-#      - "51821:51821/tcp"
-#    restart: unless-stopped
-#    cap_add:
-#      - NET_ADMIN
-#      - SYS_MODULE
-#    sysctls:
-#      - net.ipv4.ip_forward=1
-#      - net.ipv4.conf.all.src_valid_mark=1
+      - "8889:80"

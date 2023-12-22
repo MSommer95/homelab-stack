@@ -23,12 +23,12 @@ services:
       - GF_UNIFIED_ALERTING_SCREENSHOTS_UPLOAD_EXTERNAL_IMAGE_STORAGE=true
       - GF_EXTERNAL_IMAGE_STORAGE_PROVIDER=local
       - GF_RENDERING_SERVER_URL=http://${IP_ADDRESS}:8085/render
-      - GF_RENDERING_CALLBACK_URL=http://${IP_ADDRESS}:3005
+      - GF_RENDERING_CALLBACK_URL=http://${IP_ADDRESS}:3006
     hostname: grafana
     image: grafana/grafana:latest
     restart: unless-stopped
     ports:
-      - "3005:3000"
+      - "3006:3000"
     volumes:
       # to be modified depending on your needs
       - ./data/grafana/data:/var/lib/grafana
@@ -73,6 +73,13 @@ services:
       - DB_DATABASE=speedtest_tracker
       - DB_USERNAME=speedy
       - DB_PASSWORD=password
+      - FORCE_HTTPS=false
+      - APP_NAME="HomeLab Speedtest Tracker"
+      - APP_ENV=production
+      - APP_KEY=base64:1I6wXmZ+D/kLOeqv4bS3gq/F1yMHQy0PAxFhwfkGgxA=
+      - APP_DEBUG=false
+      - APP_URL=https://speedtracker.homiems.duckdns.org/ 
+  #- APP_KEY=base64:tdP72KJ+yxxxxxxxxxxxxxxxxZy1GeM6mbpr+1tbv4=
     volumes:
       - './data/speedtest-tracker/config:/config'
       - './data/speedtest-tracker/web:/etc/ssl/web'
@@ -147,28 +154,6 @@ services:
       - ./data/telegraf/:/etc/telegraf/telegraf.d/:ro
       - /:/hostfs:ro
       - /var/run/docker.sock:/var/run/docker.sock
-
-######################################### Ubiquiti #########################################
-
-  unifi-poller:
-    restart: always
-    image: ghcr.io/unpoller/unpoller:${POLLER_TAG}
-    container_name: unpoller
-    network_mode: "host"
-    environment:
-      - UP_INFLUXDB_DB=${INFLUXDB_NAME}
-      - UP_INFLUXDB_USER=${INFLUXDB_USERNAME}
-      - UP_INFLUXDB_PASS=${INFLUXDB_PASSWORD}
-      - UP_INFLUXDB_URL=${INFLUXDB_URL}
-      - UP_INFLUXDB_ORG=${INFLUXDB_ORG}
-      - UP_INFLUXDB_BUCKET=${INFLUXDB_BUCKET}
-      - UP_INFLUXDB_AUTH_TOKEN=${INFLUXDB_ADMIN_TOKEN}
-      - UP_UNIFI_DEFAULT_USER=${UNIFI_USER}
-      - UP_UNIFI_DEFAULT_PASS=${UNIFI_PASS}
-      - UP_UNIFI_DEFAULT_URL=${UNIFI_URL}
-      - UP_POLLER_DEBUG=${POLLER_DEBUG}
-      - UP_UNIFI_DEFAULT_SAVE_DPI=${POLLER_SAVE_DPI}
-      - UP_INFLUXDB_INTERVAL=1m
 
 ######################################### MQTT #########################################
 
@@ -319,7 +304,7 @@ services:
       - PIHOLE_PASSWORD=MtuXn6gHYrcv
       - PIHOLE_HOSTNAME=192.168.1.10,192.168.1.85
       - PIHOLE_PORT=80,6080
-
+  
   tankerkoenig-exporter:
     container_name: tanker-exporter
     image: ghcr.io/lukasmalkmus/tankerkoenig_exporter:0.12.0
@@ -331,24 +316,6 @@ services:
     command:
       - '--tankerkoenig.location=${TANKERKOENIG_LOCATION}'
       - '--tankerkoenig.radius=5'
-
-######################################### Pi-Alert #########################################
-
-  pialert:
-    container_name: pialert
-    image: "jokobsk/pi.alert:latest"
-    network_mode: "host"
-    restart: unless-stopped
-    volumes:
-      - ./data/pialert/config:/home/pi/pialert/config
-      - ./data/pialert/db:/home/pi/pialert/db
-      # (optional) useful for debugging if you have issues setting up the container
-      - ./data/pialert/logs:/home/pi/pialert/front/log
-    environment:
-      - TZ=Europe/Berlin
-      - HOST_USER_ID=1000
-      - HOST_USER_GID=1000
-      - PORT=20211
 
 ######################################### Homeassistant #########################################
 

@@ -1,7 +1,7 @@
 version: '3.9'
 services:
 
-  ######################################### Jellyfin #########################################
+######################################### Jellyfin #########################################
 
   jellyfin:
     image: jellyfin/jellyfin
@@ -26,6 +26,21 @@ services:
       # VAAPI Devices (examples)
       - /dev/dri/renderD128:/dev/dri/renderD128
       - /dev/dri/card0:/dev/dri/card0
+
+  ######################################### Plex #########################################
+
+  plex:
+      image: plexinc/pms-docker
+      volumes:
+          - '/homiepool/media:/data'
+          - './data/plex/transcode:/transcode'
+          - './data/plex/database:/config'
+      environment:
+          - PLEX_CLAIM=${PLEX_CLAIM}
+          - TZ=${TZ}
+      network_mode: 'host'
+      container_name: plex
+      restart: 'unless-stopped'
 
   ######################################### arr-stack #########################################
 
@@ -85,42 +100,6 @@ services:
     volumes:
       - ./data/jellyseerr/config:/app/config
     restart: unless-stopped
-
-    
-
-  ######################################### Nextcloud #########################################
-
-  nextcloud:
-    container_name: nextcloud
-    image: nextcloud:latest
-    restart: unless-stopped
-    ports:
-      - "8080:80"
-    links:
-      - db
-    volumes:
-      - /homiepool/nextcloud/data/:/var/www/html
-    environment:
-      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
-      - MYSQL_DATABASE=nextcloud
-      - MYSQL_USER=nextcloud
-      - MYSQL_HOST=db
-      - NEXTCLOUD_TRUSTED_DOMAINS=nextcloud.homie.local nextcloud.homiems.duckdns.org
-      - TRUSTED_PROXIES=192.168.1.85
-      - APACHE_DISABLE_REWRITE_IP=1
-
-  db:
-    container_name: mariadb-nextcloud
-    image: mariadb:10.5
-    restart: unless-stopped
-    command: --transaction-isolation=READ-COMMITTED --binlog-format=ROW
-    volumes:
-      - ./data/nextcloud/mariadb/db:/var/lib/mysql
-    environment:
-      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
-      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
-      - MYSQL_DATABASE=nextcloud
-      - MYSQL_USER=nextcloud
 
   ######################################### Recipes #########################################
 
@@ -204,39 +183,6 @@ services:
       - "3003:443"
     restart: unless-stopped
 
-  ######################################### GameVault #########################################
-
-  gamevault-backend:
-    image: phalcode/gamevault-backend:latest
-    restart: unless-stopped
-    container_name: gamevault-backend
-    environment:
-      DB_HOST: gamevault-db
-      DB_USERNAME: gamevault
-      DB_PASSWORD: ${PG_PASSWORD}
-      # The Following Line grants Admin Role to account with this username upon registration.
-      SERVER_ADMIN_USERNAME: admin
-      # Uncomment and Insert your RAWG API Key here if you have one (http://rawg.io/login?forward=developer)
-      RAWG_API_KEY: ${RAWG_API_KEY}
-    volumes:
-      # Mount the folder where your games are
-      - /homiepool/media/Games:/files
-      # Mount the folder where gamevault should store its images
-      - ./data/gamevault/images:/images
-    ports:
-      - "8088:8080"
-
-  gamevault-db:
-    container_name: gamevault-db
-    image: postgres:15
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: gamevault
-      POSTGRES_PASSWORD: ${PG_PASSWORD}
-      POSTGRES_DB: gamevault
-    volumes:
-      # Mount the folder where your postgres database files should land
-      - ./data/gamevault/db:/var/lib/postgresql
 
   ######################################### Excalidraw #########################################
 
@@ -246,3 +192,46 @@ services:
     restart: unless-stopped
     ports:
       - "5003:80"
+
+  ######################################### JDownloader #########################################
+
+  jdownloader-2:
+    image: jlesage/jdownloader-2
+    container_name: jdownloader
+    environment:
+      - JDOWNLOADER_USER=${JDOWNLOADER_USER}
+      - JDOWNLOADER_PW=${JDOWNLOADER_PW}
+      - JDOWNLOADER_CLIENT=${JDOWNLOADER_CLIENT}
+    restart: unless-stopped
+    ports:
+      - "5800:5800"
+    volumes:
+      - "./data/jdownloader-2:/config:rw"
+      - "/homiepool/media/Downloads:/output:rw"
+
+  ######################################### RSS #########################################
+
+  commafeed:
+    container_name: commafeed
+    image: athou/commafeed:latest
+    restart: unless-stopped
+    environment:
+      - CF_DATABASE_DRIVERCLASS=org.postgresql.Driver
+      - CF_DATABASE_URL=jdbc:postgresql://commafeed-postgres:5432/commafeed
+      - CF_DATABASE_USER=commafeed
+      - CF_DATABASE_PASSWORD=commafeed
+    volumes:
+      - ./data/commafeed/data:/commafeed/data
+    ports:
+      - "8082:8082"
+
+  commafeed-postgresql:
+    container_name: commafeed-postgres
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: commafeed
+      POSTGRES_PASSWORD: commafeed
+      POSTGRES_DB: commafeed
+    volumes:
+      - /path/to/commafeed/db:/var/lib/postgresql/data
