@@ -32,7 +32,7 @@ fi
 
 source_file .env 
 
-COMPOSE_FILES=( -f ${WD}/docker-compose.main.yml -f ${WD}/docker-compose.monitoring.yml -f ${WD}/docker-compose.media.yml -f ${WD}/docker-compose.immich.yml -f ${WD}/docker-compose.firefliii.yml )
+COMPOSE_FILES=( -f ${WD}/docker-compose.main.yml -f ${WD}/docker-compose.monitoring.yml -f ${WD}/docker-compose.media.yml -f ${WD}/docker-compose.immich.yml -f ${WD}/docker-compose.test.yml )
 
 
 if [ "$1" = "start" ]; then
@@ -45,7 +45,7 @@ fi
 if [ "$1" = "update" ]; then
     docker compose "${COMPOSE_FILES[@]}" pull
     docker compose "${COMPOSE_FILES[@]}" build
-    docker compose "${COMPOSE_FILES[@]}" up -d
+    docker compose "${COMPOSE_FILES[@]}" up -d --remove-orphans
     docker image prune
 fi
 if [ "$1" = "remove" ]; then
