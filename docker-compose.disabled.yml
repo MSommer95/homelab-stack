@@ -1,0 +1,149 @@
+  ######################################### Nextcloud #########################################
+
+  nextcloud:
+    container_name: nextcloud
+    image: nextcloud:latest
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    links:
+      - db
+    volumes:
+      - /homiepool/nextcloud/data/:/var/www/html
+    environment:
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+      - MYSQL_HOST=db
+      - NEXTCLOUD_TRUSTED_DOMAINS=nextcloud.homie.local nextcloud.homiems.duckdns.org
+      - TRUSTED_PROXIES=192.168.1.85
+      - APACHE_DISABLE_REWRITE_IP=1
+
+  db:
+    container_name: mariadb-nextcloud
+    image: mariadb:10.5
+    restart: unless-stopped
+    command: --transaction-isolation=READ-COMMITTED --binlog-format=ROW
+    volumes:
+      - ./data/nextcloud/mariadb/db:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+
+  ######################################### GameVault #########################################
+
+  gamevault-backend:
+    image: phalcode/gamevault-backend:latest
+    restart: unless-stopped
+    container_name: gamevault-backend
+    environment:
+      DB_HOST: gamevault-db
+      DB_USERNAME: gamevault
+      DB_PASSWORD: ${PG_PASSWORD}
+      # The Following Line grants Admin Role to account with this username upon registration.
+      SERVER_ADMIN_USERNAME: admin
+      # Uncomment and Insert your RAWG API Key here if you have one (http://rawg.io/login?forward=developer)
+      RAWG_API_KEY: ${RAWG_API_KEY}
+    volumes:
+      # Mount the folder where your games are
+      - /homiepool/media/Games:/files
+      # Mount the folder where gamevault should store its images
+      - ./data/gamevault/images:/images
+    ports:
+      - "8088:8080"
+
+  gamevault-db:
+    container_name: gamevault-db
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: gamevault
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+      POSTGRES_DB: gamevault
+    volumes:
+      # Mount the folder where your postgres database files should land
+      - ./data/gamevault/db:/var/lib/postgresql
+
+######################################## smtp #########################################
+
+  smtp:
+    container_name: smtp
+    image: tremolosecurity/smtp-blackhole
+    network_mode: "host"
+
+######################################## wireguard #########################################
+
+  wg-easy:
+    environment:
+    # Change this to your host's public address
+      - WG_HOST=mshomelab.chickenkiller.com
+
+# Optional:
+##      - PASSWORD=${WG_PASSWORD}
+# - WG_PORT=51820
+# - WG_DEFAULT_ADDRESS=10.8.0.x
+#      - WG_DEFAULT_DNS=192.168.1.10
+# - WG_MTU=1420
+# - WG_ALLOWED_IPS=192.168.15.0/24, 10.0.1.0/24
+# - WG_PRE_UP=echo "Pre Up" > /etc/wireguard/pre-up.txt
+# - WG_POST_UP=echo "Post Up" > /etc/wireguard/post-up.txt
+# - WG_PRE_DOWN=echo "Pre Down" > /etc/wireguard/pre-down.txt
+# - WG_POST_DOWN=echo "Post Down" > /etc/wireguard/post-down.txt
+
+    image: weejewel/wg-easy
+    container_name: wg-easy
+    volumes:
+      - ./data/wg-easy:/etc/wireguard
+    ports:
+      - "51820:51820/udp"
+      - "51821:51821/tcp"
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv4.conf.all.src_valid_mark=1
+
+
+######################################### Ubiquiti #########################################
+
+  unifi-poller:
+    restart: always
+    image: ghcr.io/unpoller/unpoller:${POLLER_TAG}
+    container_name: unpoller
+    network_mode: "host"
+    environment:
+      - UP_INFLUXDB_DB=${INFLUXDB_NAME}
+      - UP_INFLUXDB_USER=${INFLUXDB_USERNAME}
+      - UP_INFLUXDB_PASS=${INFLUXDB_PASSWORD}
+      - UP_INFLUXDB_URL=${INFLUXDB_URL}
+      - UP_INFLUXDB_ORG=${INFLUXDB_ORG}
+      - UP_INFLUXDB_BUCKET=${INFLUXDB_BUCKET}
+      - UP_INFLUXDB_AUTH_TOKEN=${INFLUXDB_ADMIN_TOKEN}
+      - UP_UNIFI_DEFAULT_USER=${UNIFI_USER}
+      - UP_UNIFI_DEFAULT_PASS=${UNIFI_PASS}
+      - UP_UNIFI_DEFAULT_URL=${UNIFI_URL}
+      - UP_POLLER_DEBUG=${POLLER_DEBUG}
+      - UP_UNIFI_DEFAULT_SAVE_DPI=${POLLER_SAVE_DPI}
+      - UP_INFLUXDB_INTERVAL=1m
+
+######################################### Pi-Alert #########################################
+
+  pialert:
+    container_name: pialert
+    image: "jokobsk/pi.alert:latest"
+    network_mode: "host"
+    restart: unless-stopped
+    volumes:
+      - ./data/pialert/config:/home/pi/pialert/config
+      - ./data/pialert/db:/home/pi/pialert/db
+      # (optional) useful for debugging if you have issues setting up the container
+      - ./data/pialert/logs:/home/pi/pialert/front/log
+    environment:
+      - TZ=Europe/Berlin
+      - HOST_USER_ID=1000
+      - HOST_USER_GID=1000
+      - PORT=20211
